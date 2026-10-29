@@ -1,0 +1,45 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Новий Простір — карта масивів Одеси</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"><style>*{box-sizing:border-box}body{margin:0;font:14px Arial,sans-serif;color:#173c31}header{background:#167448;color:white;padding:12px 17px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}header strong{font-size:19px}header span{opacity:.9}#map{height:calc(100vh - 150px);min-height:480px}.bar{padding:9px 12px;background:#f4faf5;display:flex;gap:8px;flex-wrap:wrap;align-items:center}button,select{padding:8px 10px;border:1px solid #a5c9b1;border-radius:6px;background:white;color:#134f34}button{cursor:pointer}button:hover{background:#e1f5e6}.hint{color:#456;font-size:12px}.leaflet-container{font-family:Arial,sans-serif}.legend{background:white;padding:10px;border-radius:7px;box-shadow:0 1px 8px #7778;line-height:1.7;max-width:250px}.legend b{display:block;margin-bottom:5px}.dot{display:inline-block;width:12px;height:12px;margin-right:6px;border-radius:2px}.leaflet-popup-content{min-width:160px}.zone-label{background:#fff;border:2px solid #167448;border-radius:5px;padding:5px 9px;box-shadow:0 2px 8px #0004;font-weight:700;color:#143e2b;text-align:center;white-space:normal;min-width:105px;max-width:180px;line-height:1.25;pointer-events:none}.zone-label-wrap{background:transparent;border:0}</style></head><body><header><strong>НОВИЙ ПРОСТІР</strong><span>Одеса · робоча карта масивів для LigaPro</span></header><div class="bar"><label>Масив: <select id="zone"></select></label><button id="export">Скачать границы GeoJSON</button><button id="importBtn">Загрузить границы</button><input type="file" id="import" accept=".json,.geojson" hidden><button id="clear">Очистить разметку</button><a href="https://osmand.net/map/#14.21/46.4853/30.7208" target="_blank" rel="noopener">Открыть OsmAnd ↗</a><span class="hint">Обведите массив инструментом слева — название автоматически появится внутри выделенной территории. Правка через карандаш.</span></div><div id="mapstatus" style="padding:5px 12px;background:#fff9db;color:#624d16;font-size:12px">Карта загружается через Esri. Если улицы не появились, выберите CARTO в правом верхнем углу.</div><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script><script>
+const zones=[['Молдаванка (Приморський)','#3aaf73'],['Центр (Приморський)','#e0a33b'],['Французький бульвар / просп. Шевченка','#6487d8'],['Аркадія','#a85dd0'],['Фонтан 1–5 ст.','#e57d5b'],['Фонтан 5–11 ст.','#2fa4a1'],['Молдаванка (Хаджибейський)','#b77b48'],['Слобідка (Пересипський)','#6f9d54'],['Пересип (Пересипський)','#d96a94'],['Лузанівка (Пересипський)','#d6a54c'],['Селище Котовського (Пересипський)','#6287ae'],['Черемушки (Хаджибейський)','#c3a54b'],['Бугаївка (Хаджибейський)','#8b9c53'],['Ленселище (Хаджибейський)','#c67b77'],['Застава (Хаджибейський)','#af8fbf'],['Таїрова (Київський)','#68a3d1'],['Вузівський (Київський)','#af73a7'],['Чубаївка (Київський)','#bb9a68'],['Чорноморка (Київський)','#5aafa7'],['Совіньйон (Київський)','#90b55a']];
+const sel=document.getElementById('zone');zones.forEach(([n],i)=>sel.add(new Option(n,i)));
+const map=L.map('map',{preferCanvas:true}).setView([46.467,30.736],12);const baseMaps={
+ 'Карта улиц (Esri)':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri; data © OpenStreetMap contributors and other providers'}),
+ 'Светлая карта (CARTO)':L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap contributors © CARTO'}),
+ 'Подробная карта (CARTO)':L.tileLayer('https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap contributors © CARTO'})
+};
+let currentBase=baseMaps['Карта улиц (Esri)'].addTo(map);
+L.control.layers(baseMaps,null,{position:'topright',collapsed:false}).addTo(map);
+let failCount=0;
+currentBase.on('tileerror',()=>{if(++failCount===4){document.getElementById('mapstatus').textContent='Если улицы не появились, переключите подложку в правом верхнем углу.'}});
+
+const group=new L.FeatureGroup().addTo(map);
+const labels=L.layerGroup().addTo(map);
+function refreshLabels(){
+  labels.clearLayers();
+  group.eachLayer(layer=>{
+    if(!layer.getBounds)return;
+    const name=layer.feature?.properties?.name||'Масив';
+    const bounds=layer.getBounds();
+    if(!bounds.isValid())return;
+    const label=document.createElement('div');
+    label.className='zone-label';
+    label.textContent=name;
+    label.style.borderColor=color(name);
+    const marker=L.marker(bounds.getCenter(),{
+      interactive:false,keyboard:false,
+      icon:L.divIcon({className:'zone-label-wrap',html:label.outerHTML,iconSize:[160,48],iconAnchor:[80,24]})
+    });
+    labels.addLayer(marker);
+  });
+}
+function color(name){return zones.find(z=>z[0]===name)?.[1]||'#167448'}
+function stylize(layer){let n=layer.feature?.properties?.name||zones[+sel.value][0];layer.feature=layer.feature||{type:'Feature',properties:{},geometry:null};layer.feature.properties.name=n;layer.setStyle({color:color(n),weight:3,fillColor:color(n),fillOpacity:.22,dashArray:'8 5'});layer.bindPopup('<b>'+n+'</b><p>Внутрішній масив АН «Новий Простір» — попередня розмітка, не офіційна адміністративна межа.</p>')}
+const draw=new L.Control.Draw({position:'topleft',draw:{polyline:false,rectangle:false,circle:false,circlemarker:false,marker:false,polygon:{allowIntersection:false,showArea:true,shapeOptions:{color:'#167448',weight:3,fillOpacity:.2}}},edit:{featureGroup:group,remove:true}});map.addControl(draw);
+function save(){refreshLabels();try{localStorage.setItem('np_odesa_geojson',JSON.stringify(group.toGeoJSON()))}catch(e){}}
+map.on(L.Draw.Event.CREATED,e=>{e.layer.feature={type:'Feature',properties:{name:zones[+sel.value][0]}};stylize(e.layer);group.addLayer(e.layer);save()});map.on('draw:edited',save);map.on('draw:deleted',save);
+function load(data){if(data.type!=='FeatureCollection')throw Error('Нужен GeoJSON FeatureCollection');group.clearLayers();L.geoJSON(data,{onEachFeature:(f,l)=>{stylize(l);group.addLayer(l)}});save();if(group.getLayers().length)map.fitBounds(group.getBounds(),{padding:[25,25]})}
+try{const s=localStorage.getItem('np_odesa_geojson');if(s)load(JSON.parse(s))}catch(e){}
+document.getElementById('export').onclick=()=>{const b=new Blob([JSON.stringify(group.toGeoJSON(),null,2)],{type:'application/geo+json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='novyi_prostir_odesa_masyvy.geojson';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+document.getElementById('importBtn').onclick=()=>document.getElementById('import').click();document.getElementById('import').onchange=async e=>{try{load(JSON.parse(await e.target.files[0].text()))}catch(err){alert('Не удалось загрузить: '+err.message)}};
+document.getElementById('clear').onclick=()=>{if(confirm('Удалить все нарисованные границы?')){group.clearLayers();save()}};
+const legend=L.control({position:'bottomright'});legend.onAdd=()=>{let el=L.DomUtil.create('div','legend');el.innerHTML='<b>Масиви та підписи</b>Натисніть інструмент багатокутника ліворуч, виберіть масив угорі та обведіть його по вулицях.<hr><small>Підкладки: Esri / CARTO, дані OpenStreetMap. OsmAnd — орієнтир. Жодні межі не вигадані.</small>';return el};legend.addTo(map);
+</script></body></html>
