@@ -6,7 +6,7 @@ const baseMaps={
 'Вулиці · Esri':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}),
 'Детальна · CARTO Voyager':L.tileLayer('https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap contributors © CARTO'}),
 'Світла · CARTO':L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap contributors © CARTO'})};
-baseMaps['Детальна · CARTO Voyager'].addTo(map);
+baseMaps['Вулиці · Esri'].addTo(map);
 L.control.layers(baseMaps,null,{collapsed:true}).addTo(map);
 const polygons=L.geoJSON(DATA,{style:f=>({color:COLORS[f.properties.name]||'#157447',weight:3,fillColor:COLORS[f.properties.name]||'#157447',fillOpacity:.17}),onEachFeature:(f,l)=>{const name=f.properties.name||'Масив';const el=document.createElement('strong');el.textContent=name;l.bindPopup(el.outerHTML+'<p>Робоча межа АН «Новий Простір». Не є офіційною адміністративною межею.</p>')}}).addTo(map);
 const labels=L.layerGroup().addTo(map);
